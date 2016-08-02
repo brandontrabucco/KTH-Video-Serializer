@@ -50,6 +50,8 @@ public:
 	bool nextTestVideo();
 	bool nextTrainingFrame();
 	bool nextTestFrame();
+	bool isLastTrainingFrame();
+	bool isLastTestFrame();
 	DatasetExample getTrainingFrame();
 	DatasetExample getTestFrame();
 	void reset();

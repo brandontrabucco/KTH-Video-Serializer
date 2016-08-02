@@ -25,6 +25,11 @@ DatasetAdapter::DatasetAdapter() {
 	char *trainingLabelsFileData;
 	char *testLabelsFileData;
 
+	trainingIndex = -1;
+	testIndex = -1;
+	trainingFrameIndex = -1;
+	testFrameIndex = -1;
+
 	if (trainingDatasetFile.is_open() &&
 			testDatasetFile.is_open() &&
 			trainingLabelsFile.is_open() &&
@@ -136,10 +141,12 @@ int DatasetAdapter::getTestSize() {
 
 bool DatasetAdapter::nextTrainingVideo() {
 	//cout << "Training index " << trainingIndex << endl;
+	trainingFrameIndex = -1;
 	return (++trainingIndex) < dataset.trainingVideos.size();
 }
 
 bool DatasetAdapter::nextTestVideo() {
+	testFrameIndex = -1;
 	return (++testIndex) < dataset.testVideos.size();
 }
 
@@ -150,6 +157,14 @@ bool DatasetAdapter::nextTrainingFrame() {
 
 bool DatasetAdapter::nextTestFrame() {
 	return (++testFrameIndex) < (dataset.testVideos[testIndex].size() / frameSize);
+}
+
+bool DatasetAdapter::isLastTrainingFrame() {
+	return (trainingFrameIndex == ((dataset.trainingVideos[trainingIndex].size() / frameSize) - 1));
+}
+
+bool DatasetAdapter::isLastTestFrame() {
+	return (testFrameIndex == ((dataset.testVideos[testIndex].size() / frameSize) - 1));
 }
 
 DatasetExample DatasetAdapter::getTrainingFrame() {
@@ -169,10 +184,10 @@ DatasetExample DatasetAdapter::getTestFrame() {
 }
 
 void DatasetAdapter::reset() {
-	trainingIndex = 0;
-	testIndex = 0;
-	trainingFrameIndex = 0;
-	testFrameIndex = 0;
+	trainingIndex = -1;
+	testIndex = -1;
+	trainingFrameIndex = -1;
+	testFrameIndex = -1;
 }
 
 
