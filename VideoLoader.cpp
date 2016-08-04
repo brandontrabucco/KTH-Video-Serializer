@@ -13,8 +13,8 @@ VideoLoader::VideoLoader(string _p) {
 	srand(time(0));
 	getAllFiles();
 	shuffle();
-	trainingVideoIndex = 0;
-	testVideoIndex = 0;
+	trainingVideoIndex = -1;
+	testVideoIndex = -1;
 	frameIndex = 0;
 }
 
@@ -24,14 +24,14 @@ VideoLoader::~VideoLoader() {
 }
 
 void VideoLoader::loadTrainingVideo() {
+	if (trainingVideoIndex < 0) cout << "Out of bounds" << endl;
 	capture.open(trainingFiles[trainingVideoIndex]);
-	trainingVideoIndex++;
 	frameIndex = 0;
 }
 
 void VideoLoader::loadTestVideo() {
+	if (testVideoIndex < 0) cout << "Out of bounds" << endl;
 	capture.open(testFiles[testVideoIndex]);
-	testVideoIndex++;
 	frameIndex = 0;
 }
 
@@ -41,7 +41,7 @@ void VideoLoader::closeVideo() {
 
 bool VideoLoader::nextTrainingVideo() {
 	closeVideo();
-	if (trainingVideoIndex < getTrainingVideoCount()) {
+	if (++trainingVideoIndex < getTrainingVideoCount()) {
 		loadTrainingVideo();
 		return true;
 	} else return false;
@@ -50,7 +50,7 @@ bool VideoLoader::nextTrainingVideo() {
 
 bool VideoLoader::nextTestVideo() {
 	closeVideo();
-	if (testVideoIndex < getTestVideoCount()) {
+	if (++testVideoIndex < getTestVideoCount()) {
 		loadTestVideo();
 		return true;
 	} else return false;
@@ -59,12 +59,18 @@ bool VideoLoader::nextTestVideo() {
 bool VideoLoader::nextTrainingFrame() {
 	if (frameIndex < getFrameCount()) {
 		capture >> frame;
+		int attempts = 0;
 		while ((frame.cols == 0 || frame.rows == 0)) {
-			cout << "Image empty, retrying file read" << endl;
+			if (attempts > 4) return false;
+			cout << "Image empty, retrying frame " << frameIndex << " read on " << trainingVideoIndex << endl;
 			capture.release();
+			waitKey(2000);
 			capture.open(trainingFiles[trainingVideoIndex]);
-			capture.set(CV_CAP_PROP_POS_FRAMES, frameIndex);
+			cout << "Opening: " << trainingFiles[trainingVideoIndex] << endl;
+			for (int i = 0; i < frameIndex; i++)
+				capture >> frame;
 			capture >> frame;
+			attempts++;
 		}
 		frameIndex++;
 		return true;
@@ -74,12 +80,18 @@ bool VideoLoader::nextTrainingFrame() {
 bool VideoLoader::nextTestFrame() {
 	if (frameIndex < getFrameCount()) {
 		capture >> frame;
+		int attempts = 0;
 		while ((frame.cols == 0 || frame.rows == 0)) {
-			cout << "Image empty, retrying file read" << endl;
+			if (attempts > 4) return false;
+			cout << "Image empty, retrying frame " << frameIndex << " read on " << testVideoIndex << endl;
 			capture.release();
+			waitKey(2000);
 			capture.open(testFiles[testVideoIndex]);
-			capture.set(CV_CAP_PROP_POS_FRAMES, frameIndex);
+			cout << "Opening: " << testFiles[testVideoIndex] << endl;
+			for (int i = 0; i < frameIndex; i++)
+				capture >> frame;
 			capture >> frame;
+			attempts++;
 		}
 		frameIndex++;
 		return true;
@@ -185,32 +197,35 @@ void VideoLoader::shuffle() {
 }
 
 void VideoLoader::serialize() {
-	ofstream trainingDatasetFile("/stash/tlab/datasets/KTH/binary/training_dataset.bin", ios::out | ios::binary);
-	ofstream testDatasetFile("/stash/tlab/datasets/KTH/binary/test_dataset.bin", ios::out | ios::binary);
-	ofstream trainingLabelsFile("/stash/tlab/datasets/KTH/binary/training_labels.bin", ios::out | ios::binary);
-	ofstream testLabelsFile("/stash/tlab/datasets/KTH/binary/test_labels.bin", ios::out | ios::binary);
+	ofstream trainingDatasetFile("/stash/tlab/datasets/KTH/binary/training_dataset.txt");
+	ofstream testDatasetFile("/stash/tlab/datasets/KTH/binary/test_dataset.txt");
+	ofstream trainingLabelsFile("/stash/tlab/datasets/KTH/binary/training_labels.txt");
+	ofstream testLabelsFile("/stash/tlab/datasets/KTH/binary/test_labels.txt");
+
+	cout << "Training size: " << trainingLabels.size() << endl;
 
 	if (trainingDatasetFile.is_open() &&
 				testDatasetFile.is_open() &&
 				trainingLabelsFile.is_open() &&
 				testLabelsFile.is_open()) {
-		trainingLabelsFile.write((char *)&(trainingLabels)[0], (sizeof(char) * trainingLabels.size()));
+		for (int i = 0; i < trainingLabels.size(); i++)trainingLabelsFile << ((i == 0)?"":" ") << trainingLabels[i];
 		while (nextTrainingVideo()) {
 			while (nextTrainingFrame()) {
 				DatasetExample data = getTrainingData();
-				trainingDatasetFile.write(reinterpret_cast<char*>((int *)&(data.frame)[0]), (sizeof(char) * data.frame.size()));
-				if (isLastFrame()) trainingDatasetFile.write(&videoEnd, sizeof(char));
-				else trainingDatasetFile.write(&frameEnd, sizeof(char));
+				if (isLastFrame()) cout << "Label: " << data.label << endl;
+				for (int i = 0; i < data.frame.size(); i++)trainingDatasetFile << data.frame[i] << " ";
+				if (isLastFrame()) trainingDatasetFile << videoEnd << " ";
+				else trainingDatasetFile << frameEnd << " ";
 			}
 		}
 
-		testLabelsFile.write((char *)&(testLabels)[0], (sizeof(char) * testLabels.size()));
-		while (nextTestVideo()) {
+		for (int i = 0; i < testLabels.size(); i++)testLabelsFile << ((i == 0)?"":" ") << testLabels[i];
+		while (nextTestVideo() &&  !(testVideoIndex % 10)) {
 			while (nextTestFrame()) {
 				DatasetExample data = getTestData();
-				testDatasetFile.write(reinterpret_cast<char*>((int *)&(data.frame)[0]), (sizeof(char) * data.frame.size()));
-				if (isLastFrame()) testDatasetFile.write(&videoEnd, sizeof(char));
-				else testDatasetFile.write(&frameEnd, sizeof(char));
+				for (int i = 0; i < data.frame.size(); i++)testDatasetFile << data.frame[i] << " ";
+				if (isLastFrame()) testDatasetFile << videoEnd << " ";
+				else testDatasetFile << frameEnd << " ";
 			}
 		}
 	}

@@ -27,8 +27,8 @@ private:
 	int trainingVideoIndex;
 	int testVideoIndex;
 	int frameIndex;
-	const char frameEnd = '\f';
-	const char videoEnd = '\v';
+	const int frameEnd = -1;
+	const int videoEnd = -2;
 	const double range = 255;
 	const double rWeight = 0.2126;
 	const double gWeight = 0.7152;
