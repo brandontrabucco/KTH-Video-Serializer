@@ -26,12 +26,53 @@ VideoLoader::~VideoLoader() {
 void VideoLoader::loadTrainingVideo() {
 	if (trainingVideoIndex < 0) cout << "Out of bounds" << endl;
 	capture.open(trainingFiles[trainingVideoIndex]);
+
+	FILE *fp;
+	fp = fopen("/stash/tlab/datasets/KTH/sequences-list.txt", "r");
+
+	trainingSequencePos.push_back(vector<int>(8, -1));
+
+	string fileName;
+	int t;
+	while ((t = fscanf(fp, " %s\t\tframes\t%d-%d, %d-%d, %d-%d, %d-%d", &fileName[0],
+			&trainingSequencePos[trainingVideoIndex][0], &trainingSequencePos[trainingVideoIndex][1],
+			&trainingSequencePos[trainingVideoIndex][2], &trainingSequencePos[trainingVideoIndex][3],
+			&trainingSequencePos[trainingVideoIndex][4], &trainingSequencePos[trainingVideoIndex][5],
+			&trainingSequencePos[trainingVideoIndex][6], &trainingSequencePos[trainingVideoIndex][7])) != EOF) {
+		if (trainingFiles[trainingVideoIndex].find(fileName.c_str()) != string::npos) {
+			// names are the same
+			cout << "Frames: " << trainingSequencePos[trainingVideoIndex][0] << "-" << trainingSequencePos[trainingVideoIndex][1] << " " <<
+					 trainingSequencePos[trainingVideoIndex][2] << "-" << trainingSequencePos[trainingVideoIndex][3] << " " <<
+					 trainingSequencePos[trainingVideoIndex][4] << "-" << trainingSequencePos[trainingVideoIndex][5] << " " <<
+					 trainingSequencePos[trainingVideoIndex][6] << "-" << trainingSequencePos[trainingVideoIndex][7] <<endl;
+			break;
+		}
+	}
+
 	frameIndex = 0;
 }
 
 void VideoLoader::loadTestVideo() {
 	if (testVideoIndex < 0) cout << "Out of bounds" << endl;
 	capture.open(testFiles[testVideoIndex]);
+
+	FILE *fp;
+	fp = fopen("/stash/tlab/datasets/KTH/sequences-list.txt", "r");
+
+	testSequencePos.push_back(vector<int>(8, -1));
+
+	string fileName;
+	while (fscanf(fp, " %s\t\tframes\t%d-%d, %d-%d, %d-%d, %d-%d", &fileName[0],
+			&testSequencePos[testVideoIndex][0], &testSequencePos[testVideoIndex][1],
+			&testSequencePos[testVideoIndex][2], &testSequencePos[testVideoIndex][3],
+			&testSequencePos[testVideoIndex][4], &testSequencePos[testVideoIndex][5],
+			&testSequencePos[testVideoIndex][6], &testSequencePos[testVideoIndex][7]) != EOF) {
+		if (fileName.compare(testFiles[testVideoIndex]) == 0) {
+			// names are the same
+			break;
+		}
+	}
+
 	frameIndex = 0;
 }
 
@@ -98,8 +139,22 @@ bool VideoLoader::nextTestFrame() {
 	} else return false;
 }
 
-bool VideoLoader::isLastFrame() {
-	return (frameIndex == getFrameCount());
+bool VideoLoader::isLastTrainingFrame() {
+	// make logic based on sequence pos
+	bool isLast = (frameIndex == (trainingSequencePos[trainingVideoIndex][1] - 1)) ||
+			(frameIndex == (trainingSequencePos[trainingVideoIndex][3] - 1)) ||
+			(frameIndex == (trainingSequencePos[trainingVideoIndex][5] - 1)) ||
+			(frameIndex == (trainingSequencePos[trainingVideoIndex][7] - 1));
+	return isLast;
+}
+
+bool VideoLoader::isLastTestFrame() {
+	// make logic based on sequence pos
+	bool isLast = (frameIndex == (testSequencePos[testVideoIndex][1] - 1)) ||
+			(frameIndex == (testSequencePos[testVideoIndex][3] - 1)) ||
+			(frameIndex == (testSequencePos[testVideoIndex][5] - 1)) ||
+			(frameIndex == (testSequencePos[testVideoIndex][7] - 1));
+	return isLast;
 }
 
 DatasetExample VideoLoader::getTrainingData() {
@@ -181,13 +236,14 @@ void VideoLoader::readDirectory(string path, int label) {
 	closedir(dpdf);
 }
 
-void VideoLoader::shuffle() {
-	struct RandomEngine {
-		int operator()(int i) {
-			return (rand() % i);
-		}
-	};
+struct RandomEngine {
+	const int r = rand();
+	int operator()(int i) {
+		return (r % i);
+	}
+};
 
+void VideoLoader::shuffle() {
 	RandomEngine e;
 
 	random_shuffle(testFiles.begin(), testFiles.end(), e);
@@ -208,23 +264,22 @@ void VideoLoader::serialize() {
 				testDatasetFile.is_open() &&
 				trainingLabelsFile.is_open() &&
 				testLabelsFile.is_open()) {
-		for (int i = 0; i < trainingLabels.size(); i++)trainingLabelsFile << ((i == 0)?"":" ") << trainingLabels[i];
+		for (int i = 0; i < trainingLabels.size(); i++)trainingLabelsFile << ((i == 0)?"":" ") << trainingLabels[i] << " " << trainingLabels[i] << " " << trainingLabels[i] << " " << trainingLabels[i];
 		while (nextTrainingVideo()) {
 			while (nextTrainingFrame()) {
 				DatasetExample data = getTrainingData();
-				if (isLastFrame()) cout << "Label: " << data.label << endl;
 				for (int i = 0; i < data.frame.size(); i++)trainingDatasetFile << data.frame[i] << " ";
-				if (isLastFrame()) trainingDatasetFile << videoEnd << " ";
+				if (isLastTrainingFrame()) trainingDatasetFile << videoEnd << " ";
 				else trainingDatasetFile << frameEnd << " ";
 			}
 		}
 
-		for (int i = 0; i < testLabels.size(); i++)testLabelsFile << ((i == 0)?"":" ") << testLabels[i];
+		for (int i = 0; i < testLabels.size(); i++)testLabelsFile << ((i == 0)?"":" ") << testLabels[i] << " " << testLabels[i] << " " << testLabels[i] << " " << testLabels[i];
 		while (nextTestVideo() &&  !(testVideoIndex % 10)) {
 			while (nextTestFrame()) {
 				DatasetExample data = getTestData();
 				for (int i = 0; i < data.frame.size(); i++)testDatasetFile << data.frame[i] << " ";
-				if (isLastFrame()) testDatasetFile << videoEnd << " ";
+				if (isLastTestFrame()) testDatasetFile << videoEnd << " ";
 				else testDatasetFile << frameEnd << " ";
 			}
 		}

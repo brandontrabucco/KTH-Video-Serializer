@@ -44,6 +44,7 @@ private:
 	VideoCapture capture;
 	vector<string> trainingFiles, testFiles;
 	vector<int> trainingLabels, testLabels;
+	vector<vector<int> > trainingSequencePos, testSequencePos;
 	void getAllFiles();
 	void readDirectory(string path, int label);
 	void shuffle();
@@ -54,7 +55,8 @@ private:
 	bool nextTestVideo();
 	bool nextTrainingFrame();
 	bool nextTestFrame();
-	bool isLastFrame();
+	bool isLastTrainingFrame();
+	bool isLastTestFrame();
 	DatasetExample getTrainingData();
 	DatasetExample getTestData();
 	vector<double> convertFrame(Mat image);
